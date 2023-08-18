@@ -6,6 +6,13 @@
 #include <SPI.h>
 #include <LoRa.h>
 
+#include <LiquidCrystal_I2C.h>
+
+// set the LCD number of columns and rows
+int lcdColumns = 16;
+int lcdRows = 2;
+LiquidCrystal_I2C lcd(0x3C, lcdColumns, lcdRows);  
+
 #include "MQ135.h"
 
 #include <Wire.h>
@@ -58,6 +65,10 @@ void setup() {
   Serial.begin(115200);
   pinMode(trigPin, OUTPUT);  // Sets the trigPin as an Output
   pinMode(echoPin, INPUT);   // Sets the echoPin as an Input
+    // initialize LCD
+  lcd.init();
+  // turn on LCD backlight                      
+  lcd.backlight();
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -120,14 +131,28 @@ void setup() {
       else if (error == OTA_END_ERROR) Serial.println("End Failed");
     });
 
-  ArduinoOTA.begin();
   Serial.println("Ready.");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  ArduinoOTA.begin();
 }
 
 void loop() {
   ArduinoOTA.handle();
+
+   // set cursor to first column, first row
+  lcd.setCursor(0, 0);
+  // print message
+  lcd.print("Hello, World!");
+  delay(1000);
+  // clears the display to print new message
+  lcd.clear();
+  // set cursor to first column, second row
+  lcd.setCursor(0,1);
+  lcd.print("Hello, World!");
+  delay(1000);
+  lcd.clear(); 
+
   float rzero = gasSensor.getRZero();
   float ppm = gasSensor.getPPM();
   // Serial.println(ppm);
@@ -163,10 +188,10 @@ void loop() {
     display.setTextColor(WHITE);
     display.setCursor(0, 0);
     display.println("HC-SR04");
-    display.print("Value: ");
+    display.print("Val: ");
     display.println(distanceCm);
     display.display();
-    delay(500);
+    delay(1000);
 
     Serial.print("Sending: NODE1|HC-SR04|");
     Serial.println(distanceCm);
@@ -191,11 +216,11 @@ void loop() {
     display.setTextColor(WHITE);
     display.setCursor(0, 0);
     display.println("MQ-135");
-    display.print("Value: ");
+    display.print("Val: ");
     display.println(ppm);
     display.display();
 
-    delay(500);
+    delay(1000);
     Serial.print("Sending: NODE2|MQ-135|");
     Serial.println(ppm);
     LoRa.beginPacket();
