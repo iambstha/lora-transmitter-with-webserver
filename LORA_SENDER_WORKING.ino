@@ -1,17 +1,8 @@
-/*********
-  Modified from the examples of the Arduino LoRa library
-  More resources: https://randomnerdtutorials.com
-*********/
 
 #include <SPI.h>
 #include <LoRa.h>
-
-#include <LiquidCrystal_I2C.h>
-
-// set the LCD number of columns and rows
-int lcdColumns = 16;
-int lcdRows = 2;
-LiquidCrystal_I2C lcd(0x3C, lcdColumns, lcdRows);  
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 #include "MQ135.h"
 
@@ -25,6 +16,15 @@ LiquidCrystal_I2C lcd(0x3C, lcdColumns, lcdRows);
 
 #include <ArduinoOTA.h>
 #include <WebServer.h>
+
+// GPIO where the DS18B20 is connected to
+const int oneWireBus = 4;  
+
+// Setup a oneWire instance to communicate with any OneWire devices
+OneWire oneWire(oneWireBus);
+
+// Pass our oneWire reference to Dallas Temperature sensor 
+DallasTemperature sensors(&oneWire);
 
 const char* ssid = "Team . NET";
 const char* password = "Nepo913913";
@@ -65,10 +65,9 @@ void setup() {
   Serial.begin(115200);
   pinMode(trigPin, OUTPUT);  // Sets the trigPin as an Output
   pinMode(echoPin, INPUT);   // Sets the echoPin as an Input
-    // initialize LCD
-  lcd.init();
-  // turn on LCD backlight                      
-  lcd.backlight();
+
+    // Start the DS18B20 sensor
+  sensors.begin();
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -140,18 +139,9 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
 
-   // set cursor to first column, first row
-  lcd.setCursor(0, 0);
-  // print message
-  lcd.print("Hello, World!");
-  delay(1000);
-  // clears the display to print new message
-  lcd.clear();
-  // set cursor to first column, second row
-  lcd.setCursor(0,1);
-  lcd.print("Hello, World!");
-  delay(1000);
-  lcd.clear(); 
+    sensors.requestTemperatures(); 
+  float temperatureC = sensors.getTempCByIndex(0);
+  // float temperatureF = sensors.getTempFByIndex(0);
 
   float rzero = gasSensor.getRZero();
   float ppm = gasSensor.getPPM();
@@ -170,8 +160,6 @@ void loop() {
   // Calculate the distance
   distanceCm = duration * SOUND_SPEED / 2;
   gasValue = ppm;
-
-  if (counter % 2 == 0) {
     // initialize the OLED object
     if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
       Serial.println(F("SSD1306 allocation failed"));
@@ -191,21 +179,33 @@ void loop() {
     display.print("Val: ");
     display.println(distanceCm);
     display.display();
-    delay(1000);
-
     Serial.print("Sending: NODE1|HC-SR04|");
     Serial.println(distanceCm);
     LoRa.beginPacket();
     LoRa.print("NODE1|HC-SR04|");
     LoRa.print(distanceCm);
     LoRa.endPacket();
-  } else {
-    // initialize the OLED object
-    if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-      Serial.println(F("SSD1306 allocation failed"));
-      for (;;)
-        ;  // Don't proceed, loop forever
-    }
+    delay(1000);
+    // Clear the buffer.
+    display.clearDisplay();
+
+    // Display Text
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(0, 0);
+    display.println("DS18B20");
+    display.print("Val: ");
+    display.println(temperatureC);
+    display.display();
+
+    Serial.print("Sending: NODE2|DS18B20|");
+    Serial.println(temperatureC);
+    LoRa.beginPacket();
+    LoRa.print("NODE2|DS18B20|");
+    LoRa.print(temperatureC);
+    LoRa.endPacket();
+        delay(1000);
 
     // Clear the buffer.
     display.clearDisplay();
@@ -219,16 +219,14 @@ void loop() {
     display.print("Val: ");
     display.println(ppm);
     display.display();
-
-    delay(1000);
-    Serial.print("Sending: NODE2|MQ-135|");
+    Serial.print("Sending: NODE3|MQ-135|");
     Serial.println(ppm);
     LoRa.beginPacket();
-    LoRa.print("NODE2|MQ-135|");
+    LoRa.print("NODE3|MQ-135|");
     LoRa.print(ppm);
     LoRa.endPacket();
-  }
-  counter++;
+    delay(1000);
+  // counter++;
   server.handleClient();
 }
 
