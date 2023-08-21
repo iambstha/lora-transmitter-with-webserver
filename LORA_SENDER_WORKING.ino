@@ -3,32 +3,26 @@
 #include <LoRa.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-
 #include "MQ135.h"
-
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
-
 #include <ArduinoOTA.h>
 #include <WebServer.h>
 
 // GPIO where the DS18B20 is connected to
-const int oneWireBus = 4;  
+const int oneWireBus = 4;
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(oneWireBus);
-
-// Pass our oneWire reference to Dallas Temperature sensor 
-DallasTemperature sensors(&oneWire);
+// Pass our oneWire reference to Dallas Temperature sensor
+DallasTemperature tempsensor(&oneWire);
 
 const char* ssid = "Team . NET";
 const char* password = "Nepo913913";
-
 WebServer server(80);
 
 //define the pins used by the transceiver module
@@ -38,16 +32,17 @@ WebServer server(80);
 
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
 #define SCREEN_HEIGHT 32  // OLED display height, in pixels
-
 // Declaration for SSD1306 display connected using I2C
 #define OLED_RESET -1  // Reset pin
 #define SCREEN_ADDRESS 0x3C
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// HC-SR04 Module Pin Connection with ESP32
 const int trigPin = 33;
 const int echoPin = 32;
 const int gasPin = 35;
 
+// Instanciating gas sensor module
 MQ135 gasSensor = MQ135(gasPin);
 
 //define sound speed in cm/uS
@@ -58,7 +53,6 @@ float ppm;
 long duration;
 float distanceCm;
 float gasValue;
-int counter = 0;
 
 void setup() {
   //initialize Serial Monitor
@@ -66,8 +60,8 @@ void setup() {
   pinMode(trigPin, OUTPUT);  // Sets the trigPin as an Output
   pinMode(echoPin, INPUT);   // Sets the echoPin as an Input
 
-    // Start the DS18B20 sensor
-  sensors.begin();
+  // Start the DS18B20 sensor
+  tempsensor.begin();
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -85,12 +79,12 @@ void setup() {
 
   while (!Serial)
     ;
-  Serial.println("LoRa Sender");
+  Serial.println("LoRa Transmitter Module");
 
   //setup LoRa transceiver module
   LoRa.setPins(ss, rst, dio0);
 
-  //replace the LoRa.begin(---E-) argument with your location's frequency
+  //Location's frequency
   //433E6 for Asia
   //866E6 for Europe
   //915E6 for North America
@@ -139,16 +133,17 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
 
-    sensors.requestTemperatures(); 
-  float temperatureC = sensors.getTempCByIndex(0);
-  // float temperatureF = sensors.getTempFByIndex(0);
+  tempsensor.requestTemperatures();
+  float temperatureC = tempsensor.getTempCByIndex(0);
+  // float temperatureF = tempsensor.getTempFByIndex(0);
 
   float rzero = gasSensor.getRZero();
   float ppm = gasSensor.getPPM();
-  // Serial.println(ppm);
+
   // Clears the trigPin
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
+
   // Sets the trigPin on HIGH state for 10 micro seconds
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
@@ -160,73 +155,65 @@ void loop() {
   // Calculate the distance
   distanceCm = duration * SOUND_SPEED / 2;
   gasValue = ppm;
-    // initialize the OLED object
-    if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-      Serial.println(F("SSD1306 allocation failed"));
-      for (;;)
-        ;  // Don't proceed, loop forever
-    }
+  // initialize the OLED object
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;)
+      ;  // Don't proceed, loop forever
+  }
 
-    // Clear the buffer.
-    display.clearDisplay();
+  // Display Text
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+  display.println("HC-SR04");
+  display.print("Val: ");
+  display.println(distanceCm);
+  display.display();
+  Serial.print("Sending: NODE1|HC-SR04|");
+  Serial.println(distanceCm);
+  LoRa.beginPacket();
+  LoRa.print("NODE1|HC-SR04|");
+  LoRa.print(distanceCm);
+  LoRa.endPacket();
+  delay(1000);
 
-    // Display Text
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setTextColor(WHITE);
-    display.setCursor(0, 0);
-    display.println("HC-SR04");
-    display.print("Val: ");
-    display.println(distanceCm);
-    display.display();
-    Serial.print("Sending: NODE1|HC-SR04|");
-    Serial.println(distanceCm);
-    LoRa.beginPacket();
-    LoRa.print("NODE1|HC-SR04|");
-    LoRa.print(distanceCm);
-    LoRa.endPacket();
-    delay(1000);
-    // Clear the buffer.
-    display.clearDisplay();
+  // Display Text
+  display.clearDisplay();  
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+  display.println("DS18B20");
+  display.print("Val: ");
+  display.println(temperatureC);
+  display.display();
 
-    // Display Text
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setTextColor(WHITE);
-    display.setCursor(0, 0);
-    display.println("DS18B20");
-    display.print("Val: ");
-    display.println(temperatureC);
-    display.display();
+  Serial.print("Sending: NODE2|DS18B20|");
+  Serial.println(temperatureC);
+  LoRa.beginPacket();
+  LoRa.print("NODE2|DS18B20|");
+  LoRa.print(temperatureC);
+  LoRa.endPacket();
+  delay(1000);
 
-    Serial.print("Sending: NODE2|DS18B20|");
-    Serial.println(temperatureC);
-    LoRa.beginPacket();
-    LoRa.print("NODE2|DS18B20|");
-    LoRa.print(temperatureC);
-    LoRa.endPacket();
-        delay(1000);
-
-    // Clear the buffer.
-    display.clearDisplay();
-
-    // Display Text
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setTextColor(WHITE);
-    display.setCursor(0, 0);
-    display.println("MQ-135");
-    display.print("Val: ");
-    display.println(ppm);
-    display.display();
-    Serial.print("Sending: NODE3|MQ-135|");
-    Serial.println(ppm);
-    LoRa.beginPacket();
-    LoRa.print("NODE3|MQ-135|");
-    LoRa.print(ppm);
-    LoRa.endPacket();
-    delay(1000);
-  // counter++;
+  // Display Text
+  display.clearDisplay();  
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+  display.println("MQ-135");
+  display.print("Val: ");
+  display.println(ppm);
+  display.display();
+  Serial.print("Sending: NODE3|MQ-135|");
+  Serial.println(ppm);
+  LoRa.beginPacket();
+  LoRa.print("NODE3|MQ-135|");
+  LoRa.print(ppm);
+  LoRa.endPacket();
+  delay(1000);
+  
   server.handleClient();
 }
 
@@ -261,12 +248,12 @@ String SendHTML(float distCm, float gasVal) {
   ptr += "<h3>Using Local Mode</h3>\n";
 
 
-    ptr += "<h4>MQ-135: ";
-    ptr += gasVal;
-    ptr += "</h4>\n";
-    ptr += "<h4>HC-SR04: ";
-    ptr += distCm;
-    ptr += "</h4>\n";
+  ptr += "<h4>MQ-135: ";
+  ptr += gasVal;
+  ptr += "</h4>\n";
+  ptr += "<h4>HC-SR04: ";
+  ptr += distCm;
+  ptr += "</h4>\n";
 
 
   ptr += "</body>\n";
