@@ -12,6 +12,7 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <WebServer.h>
+#include "time.h"
 
 // GPIO where the DS18B20 is connected to
 const int oneWireBus = 4;
@@ -42,6 +43,12 @@ const int trigPin = 33;
 const int echoPin = 32;
 const int gasPin = 35;
 
+struct tm timeinfo;
+
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 3600;
+const int daylightOffset_sec = 3600;
+
 // Instanciating gas sensor module
 MQ135 gasSensor = MQ135(gasPin);
 
@@ -53,6 +60,41 @@ float ppm;
 long duration;
 float distanceCm;
 float gasValue;
+
+void setTimezone(String timezone) {
+  Serial.printf("  Setting Timezone to %s\n", timezone.c_str());
+  setenv("TZ", timezone.c_str(), 1);  //  Now adjust the TZ.  Clock settings are adjusted to show the new local time
+  tzset();
+}
+
+void initTime(String timezone) {
+
+  Serial.println("Setting up time");
+  configTime(0, 0, ntpServer);  // First connect to NTP server, with 0 TZ offset
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("  Failed to obtain time in init function.");
+    return;
+  }
+  Serial.println("  Got the time from NTP");
+  // Now we can set the real timezone
+  setTimezone(timezone);
+}
+
+void setTime(int yr, int month, int mday, int hr, int minute, int sec, int isDst) {
+  struct tm tm;
+
+  tm.tm_year = yr - 1900;  // Set date
+  tm.tm_mon = month - 1;
+  tm.tm_mday = mday;
+  tm.tm_hour = hr;  // Set time
+  tm.tm_min = minute;
+  tm.tm_sec = sec;
+  tm.tm_isdst = isDst;  // 1 or 0
+  time_t t = mktime(&tm);
+  Serial.printf("Setting time: %s", asctime(&tm));
+  struct timeval now = { .tv_sec = t };
+  settimeofday(&now, NULL);
+}
 
 void setup() {
   //initialize Serial Monitor
@@ -70,6 +112,15 @@ void setup() {
     delay(5000);
     ESP.restart();
   }
+
+  initTime("WET0WEST,M3.5.0/1,M10.5.0");
+
+  //init and get the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  String formattedTime = getFormattedTime();
+  Serial.println("Formatted Time: " + formattedTime);
+
   delay(100);
   server.on("/", handle_OnConnect);
   server.on("/test", handle_OnTest);
@@ -133,6 +184,8 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
 
+  setTimezone("<+0545>-5:45");
+
   tempsensor.requestTemperatures();
   float temperatureC = tempsensor.getTempCByIndex(0);
   // float temperatureF = tempsensor.getTempFByIndex(0);
@@ -162,6 +215,7 @@ void loop() {
       ;  // Don't proceed, loop forever
   }
 
+  String formattedTime = getFormattedTime();
   // Display Text
   display.clearDisplay();
   display.setTextSize(2);
@@ -171,16 +225,20 @@ void loop() {
   display.print("Val: ");
   display.println(distanceCm);
   display.display();
-  Serial.print("Sending: NODE1|HC-SR04|");
-  Serial.println(distanceCm);
+  Serial.print("Sending Data: NODE1|HC-SR04|");
+  Serial.print(distanceCm);
+  Serial.print("|");
+  Serial.println(formattedTime);
   LoRa.beginPacket();
   LoRa.print("NODE1|HC-SR04|");
   LoRa.print(distanceCm);
+  LoRa.print("|");
+  LoRa.print(formattedTime);
   LoRa.endPacket();
   delay(1000);
 
   // Display Text
-  display.clearDisplay();  
+  display.clearDisplay();
   display.setTextSize(2);
   display.setTextColor(WHITE);
   display.setCursor(0, 0);
@@ -189,16 +247,20 @@ void loop() {
   display.println(temperatureC);
   display.display();
 
-  Serial.print("Sending: NODE2|DS18B20|");
-  Serial.println(temperatureC);
+  Serial.print("Sending Data: NODE2|DS18B20|");
+  Serial.print(temperatureC);
+  Serial.print("|");
+  Serial.println(formattedTime);
   LoRa.beginPacket();
   LoRa.print("NODE2|DS18B20|");
   LoRa.print(temperatureC);
+  LoRa.print("|");
+  LoRa.print(formattedTime);
   LoRa.endPacket();
   delay(1000);
 
   // Display Text
-  display.clearDisplay();  
+  display.clearDisplay();
   display.setTextSize(2);
   display.setTextColor(WHITE);
   display.setCursor(0, 0);
@@ -206,16 +268,34 @@ void loop() {
   display.print("Val: ");
   display.println(ppm);
   display.display();
-  Serial.print("Sending: NODE3|MQ-135|");
-  Serial.println(ppm);
+  Serial.print("Sending Data: NODE3|MQ-135|");
+  Serial.print(ppm);
+  Serial.print("|");
+  Serial.println(formattedTime);
   LoRa.beginPacket();
   LoRa.print("NODE3|MQ-135|");
   LoRa.print(ppm);
+  LoRa.print("|");
+  LoRa.print(formattedTime);
   LoRa.endPacket();
   delay(1000);
-  
+
   server.handleClient();
 }
+
+String getFormattedTime() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return "Failed to obtain time";
+  }
+
+  char timeString[50];  // This buffer will hold the formatted time
+  strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", &timeinfo);
+
+  return String(timeString);
+}
+
 
 void handle_OnConnect() {
   server.send(200, "text/html", SendHTML(distanceCm, gasValue));
