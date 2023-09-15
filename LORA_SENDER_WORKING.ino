@@ -19,6 +19,7 @@ const int oneWireBus = 4;
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(oneWireBus);
+
 // Pass our oneWire reference to Dallas Temperature sensor
 DallasTemperature tempsensor(&oneWire);
 
@@ -33,6 +34,7 @@ WebServer server(80);
 
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
 #define SCREEN_HEIGHT 32  // OLED display height, in pixels
+
 // Declaration for SSD1306 display connected using I2C
 #define OLED_RESET -1  // Reset pin
 #define SCREEN_ADDRESS 0x3C
@@ -63,7 +65,7 @@ float gasValue;
 
 void setTimezone(String timezone) {
   Serial.printf("  Setting Timezone to %s\n", timezone.c_str());
-  setenv("TZ", timezone.c_str(), 1);  //  Now adjust the TZ.  Clock settings are adjusted to show the new local time
+  setenv("TZ", timezone.c_str(), 1);  // Clock settings are adjusted to show the new local time
   tzset();
 }
 
@@ -76,7 +78,7 @@ void initTime(String timezone) {
     return;
   }
   Serial.println("  Got the time from NTP");
-  // Now we can set the real timezone
+  // Setting the real timezone
   setTimezone(timezone);
 }
 
@@ -120,13 +122,16 @@ void setup() {
 
   String formattedTime = getFormattedTime();
   Serial.println("Formatted Time: " + formattedTime);
-
   delay(100);
+
   server.on("/", handle_OnConnect);
   server.on("/test", handle_OnTest);
   server.onNotFound(handle_NotFound);
   server.begin();
   Serial.println("HTTP server started");
+  Serial.println("Ready.");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
 
   while (!Serial)
     ;
@@ -137,13 +142,11 @@ void setup() {
 
   //Location's frequency
   //433E6 for Asia
-  //866E6 for Europe
-  //915E6 for North America
   while (!LoRa.begin(433E6)) {
     Serial.println(".");
     delay(500);
   }
-  // Change sync word (0xF3) to match the receiver
+
   // The sync word assures you don't get LoRa messages from other LoRa transceivers
   // ranges from 0-0xFF
   LoRa.setSyncWord(0xF3);
@@ -175,17 +178,13 @@ void setup() {
       else if (error == OTA_END_ERROR) Serial.println("End Failed");
     });
 
-  Serial.println("Ready.");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+
   ArduinoOTA.begin();
 }
 
 void loop() {
   ArduinoOTA.handle();
-
   setTimezone("<+0545>-5:45");
-
   tempsensor.requestTemperatures();
   float temperatureC = tempsensor.getTempCByIndex(0);
   // float temperatureF = tempsensor.getTempFByIndex(0);
@@ -228,14 +227,16 @@ void loop() {
   Serial.print("Sending Data: NODE1|HC-SR04|");
   Serial.print(distanceCm);
   Serial.print("|");
-  Serial.println(formattedTime);
+  Serial.print(formattedTime);
+  Serial.println(".000");
   LoRa.beginPacket();
   LoRa.print("NODE1|HC-SR04|");
   LoRa.print(distanceCm);
   LoRa.print("|");
   LoRa.print(formattedTime);
+  LoRa.print(".000");
   LoRa.endPacket();
-  delay(1000);
+  delay(10000);
 
   // Display Text
   display.clearDisplay();
@@ -250,14 +251,16 @@ void loop() {
   Serial.print("Sending Data: NODE2|DS18B20|");
   Serial.print(temperatureC);
   Serial.print("|");
-  Serial.println(formattedTime);
+  Serial.print(formattedTime);
+  Serial.println(".000");
   LoRa.beginPacket();
   LoRa.print("NODE2|DS18B20|");
   LoRa.print(temperatureC);
   LoRa.print("|");
   LoRa.print(formattedTime);
+  LoRa.print(".000");
   LoRa.endPacket();
-  delay(1000);
+  delay(10000);
 
   // Display Text
   display.clearDisplay();
@@ -271,14 +274,16 @@ void loop() {
   Serial.print("Sending Data: NODE3|MQ-135|");
   Serial.print(ppm);
   Serial.print("|");
-  Serial.println(formattedTime);
+  Serial.print(formattedTime);
+  Serial.println(".000");
   LoRa.beginPacket();
   LoRa.print("NODE3|MQ-135|");
   LoRa.print(ppm);
   LoRa.print("|");
   LoRa.print(formattedTime);
+  LoRa.print(".000");
   LoRa.endPacket();
-  delay(1000);
+  delay(10000);
 
   server.handleClient();
 }
@@ -325,8 +330,8 @@ String SendHTML(float distCm, float gasVal) {
   ptr += "</head>\n";
   ptr += "<body>\n";
   ptr += "<h1>ESP32 Web Server</h1>\n";
-  ptr += "<h3>Using Local Mode</h3>\n";
 
+  ptr += "<h3>Using Local Mode</h3>\n";
 
   ptr += "<h4>MQ-135: ";
   ptr += gasVal;
@@ -334,7 +339,6 @@ String SendHTML(float distCm, float gasVal) {
   ptr += "<h4>HC-SR04: ";
   ptr += distCm;
   ptr += "</h4>\n";
-
 
   ptr += "</body>\n";
   ptr += "</html>\n";
