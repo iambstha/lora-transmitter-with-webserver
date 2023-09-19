@@ -224,17 +224,17 @@ void loop() {
   display.print("Val: ");
   display.println(distanceCm);
   display.display();
-  Serial.print("Sending Data: NODE1|HC-SR04|");
+  Serial.print("Sending Data: ACTUATOR1|HC-SR04|");
   Serial.print(distanceCm);
   Serial.print("|");
   Serial.print(formattedTime);
-  Serial.println(".000");
+  Serial.println(".000+0545");
   LoRa.beginPacket();
-  LoRa.print("NODE1|HC-SR04|");
+  LoRa.print("ACTUATOR1|HC-SR04|");
   LoRa.print(distanceCm);
   LoRa.print("|");
   LoRa.print(formattedTime);
-  LoRa.print(".000");
+  LoRa.print(".000+0545");
   LoRa.endPacket();
   delay(10000);
 
@@ -248,17 +248,17 @@ void loop() {
   display.println(temperatureC);
   display.display();
 
-  Serial.print("Sending Data: NODE2|DS18B20|");
+  Serial.print("Sending Data: ACTUATOR2|DS18B20|");
   Serial.print(temperatureC);
   Serial.print("|");
   Serial.print(formattedTime);
-  Serial.println(".000");
+  Serial.println(".000+0545");
   LoRa.beginPacket();
-  LoRa.print("NODE2|DS18B20|");
+  LoRa.print("ACTUATOR2|DS18B20|");
   LoRa.print(temperatureC);
   LoRa.print("|");
   LoRa.print(formattedTime);
-  LoRa.print(".000");
+  LoRa.print(".000+0545");
   LoRa.endPacket();
   delay(10000);
 
@@ -271,17 +271,17 @@ void loop() {
   display.print("Val: ");
   display.println(ppm);
   display.display();
-  Serial.print("Sending Data: NODE3|MQ-135|");
+  Serial.print("Sending Data: ACTUATOR3|MQ-135|");
   Serial.print(ppm);
   Serial.print("|");
   Serial.print(formattedTime);
-  Serial.println(".000");
+  Serial.println(".000+0545");
   LoRa.beginPacket();
-  LoRa.print("NODE3|MQ-135|");
+  LoRa.print("ACTUATOR3|MQ-135|");
   LoRa.print(ppm);
   LoRa.print("|");
   LoRa.print(formattedTime);
-  LoRa.print(".000");
+  LoRa.print(".000+0545");
   LoRa.endPacket();
   delay(10000);
 
